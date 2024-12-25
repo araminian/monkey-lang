@@ -8,6 +8,18 @@ import (
 	"github.com/araminian/monkey-lang/token"
 )
 
+const (
+	// precedence levels
+	_ int = iota
+	LOWEST
+	EQUALS      // ==
+	LESSGREATER // > or <
+	SUM         // +
+	PRODUCT     // *
+	PREFIX      // -X or !X
+	CALL        // myFunction(X)
+)
+
 type Parser struct {
 	l *lexer.Lexer
 
@@ -18,6 +30,21 @@ type Parser struct {
 
 	// errors
 	errors []string
+
+	// prefixParseFns is a map of prefix tokens to their corresponding parsing functions
+	prefixParseFns map[token.TokenType]prefixParseFn
+	// infixParseFns is a map of infix tokens to their corresponding parsing functions
+	infixParseFns map[token.TokenType]infixParseFn
+}
+
+// RegisterPrefix registers a prefix parsing function for a given token type
+func (p *Parser) RegisterPrefix(tokenType token.TokenType, fn prefixParseFn) {
+	p.prefixParseFns[tokenType] = fn
+}
+
+// RegisterInfix registers an infix parsing function for a given token type
+func (p *Parser) RegisterInfix(tokenType token.TokenType, fn infixParseFn) {
+	p.infixParseFns[tokenType] = fn
 }
 
 func New(l *lexer.Lexer) *Parser {
@@ -28,6 +55,12 @@ func New(l *lexer.Lexer) *Parser {
 	p.nextToken()
 
 	p.errors = []string{}
+
+	p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
+	p.infixParseFns = make(map[token.TokenType]infixParseFn)
+
+	// Register prefix parsing functions
+	p.RegisterPrefix(token.IDENT, p.parseIdentifier)
 
 	return p
 }
@@ -72,7 +105,7 @@ func (p *Parser) parseStatement() ast.Statement {
 	case token.RETURN:
 		return p.parseReturnStatement()
 	default:
-		return nil
+		return p.parseExpressionStatement()
 	}
 }
 
@@ -132,4 +165,37 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	}
 
 	return stmt
+}
+
+// Expression
+type (
+	// prefixParseFn is a function that is called when the parser encounters a prefix token
+	prefixParseFn func() ast.Expression
+	// infixParseFn is a function that is called when the parser encounters an infix token
+	infixParseFn func(ast.Expression) ast.Expression
+)
+
+func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
+	stmt := &ast.ExpressionStatement{Token: p.curToken}
+	stmt.Expression = p.parseExpression(LOWEST)
+
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return stmt
+}
+
+func (p *Parser) parseExpression(precedence int) ast.Expression {
+	prefix := p.prefixParseFns[p.curToken.Type]
+	if prefix == nil {
+		return nil
+	}
+	leftExp := prefix()
+
+	return leftExp
+}
+
+func (p *Parser) parseIdentifier() ast.Expression {
+	return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 }
