@@ -97,6 +97,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.RegisterPrefix(token.FALSE, p.parseBoolean)
 	p.RegisterPrefix(token.LPAREN, p.parseGroupedExpression)
 	p.RegisterPrefix(token.IF, p.parseIfExpression)
+	p.RegisterPrefix(token.FUNCTION, p.parseFunctionLiteral)
 
 	// Register infix parsing functions
 	p.RegisterInfix(token.PLUS, p.parseInfixExpression)
@@ -373,4 +374,52 @@ func (p *Parser) parseBlockStatement() *ast.BlockStatement {
 	}
 
 	return block
+}
+
+// parseFunctionLiteral parses a function literal
+func (p *Parser) parseFunctionLiteral() ast.Expression {
+	lit := &ast.FunctionLiteral{Token: p.curToken}
+
+	if !p.expectPeek(token.LPAREN) {
+		return nil
+	}
+
+	lit.Parameters = p.parseFunctionParameters()
+
+	if !p.expectPeek(token.LBRACE) {
+		return nil
+	}
+
+	lit.Body = p.parseBlockStatement()
+
+	return lit
+}
+
+// parseFunctionParameters parses the parameters of a function
+func (p *Parser) parseFunctionParameters() []*ast.Identifier {
+	identifiers := []*ast.Identifier{}
+
+	// If the next token is not a comma, we are done parsing the parameters
+	if p.peekTokenIs(token.RPAREN) {
+		p.nextToken()
+		return identifiers
+	}
+
+	p.nextToken()
+
+	ident := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	identifiers = append(identifiers, ident)
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken()
+		p.nextToken()
+		ident := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+		identifiers = append(identifiers, ident)
+	}
+
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+
+	return identifiers
 }
