@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/araminian/monkey-lang/evaluator"
 	"github.com/araminian/monkey-lang/lexer"
 	"github.com/araminian/monkey-lang/parser"
 )
@@ -33,7 +34,8 @@ func Start(in io.Reader, out io.Writer) {
 			continue
 		}
 
-		io.WriteString(out, program.String())
+		evaluated := evaluator.Eval(program)
+		io.WriteString(out, evaluated.Inspect())
 		io.WriteString(out, "\n")
 	}
 }
